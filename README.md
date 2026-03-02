@@ -2,77 +2,74 @@
 
 > "We observe the physics of the network, not just the signatures. Your server, your sovereignty."
 
-Realm is a next-generation, ultra-lightweight network defense engine built on eBPF (XDP) and Shannon Entropy. Deployed at the deepest layer of the Linux kernel (Ring 0), it calculates the microscopic thermodynamic properties of network packets in real-time, physically severing unknown threats and 0-day attacks in nanoseconds.
+Realm is a next-generation, ultra-lightweight network defense engine built on eBPF (XDP) and Shannon Entropy. Deployed at the deepest layer of the Linux kernel (Ring 0), it calculates the microscopic thermodynamic properties of network packets in real-time. Instead of relying on bloated virus databases, Realm physically severs unknown threats, 0-day exploits, and volumetric scanners in nanoseconds based on the laws of physics and mathematics.
 
-## ⚠️ WARNING: Highly Experimental (Read Before Running)
+## ⚠️ WARNING: Highly Aggressive Defense (Read Before Running)
 
-**DO NOT deploy this on a production server yet.** Realm is currently in its MVP (Minimum Viable Product) stage. The entropy-based physical severing is extremely aggressive. Because it currently lacks protocol whitelisting and safe-mode escape hatches, **it may misidentify your legitimate highly-encrypted traffic (such as SSH or HTTPS) as anomalies and instantly drop your connection, locking you out of your own server.**
+Realm V6.7+ is a weapon of absolute perimeter defense. The entropy-based physical severing is extremely aggressive.
 
-* This is a proof-of-concept for kernel-level traffic tension observation.
-* Please run it **ONLY** in a local VM or a test environment where you have physical/console access to reboot.
-* Active development is ongoing to introduce protocol bypasses and safe-mode whitelists. You have been warned.
+**While Realm now includes Core Protocol Whitelisting (TCP/UDP 22, 443, 53) and Dynamic Admin IP Exemption**, misconfigurations can still lock you out of your own server.
 
----
-**⚠️ 危险警告：极度实验性项目（运行前必读）**
+* Always use the provided `update_admin.sh` to exempt your current SSH IP before unleashing the engine.
+* Please test it thoroughly in a VM or a staging environment first. You have been warned.
 
-**绝对不要在生产环境中部署！**
-Realm 目前处于极早期 MVP 阶段。基于香农熵的物理熔断极度激进。由于目前尚未实装“协议白名单”和“安全逃生舱”，**它极有可能会将你正常的、高熵值的加密流量（如 SSH 远程登录或 HTTPS）误判为异常，并瞬间切断连接，导致你彻底失去对服务器的控制权。**
+## ⚔️ Architectural Rigor: How Realm Annihilates Malicious Traffic
 
-* 本项目目前仅作为“内核级流量张力观测”的概念验证 (POC)。
-* 请**仅在**虚拟机或拥有控制台重启权限的测试环境中运行。
-* 协议过滤和白名单机制正在紧张开发中。如果你锁死了自己的服务器，后果自负。
-  
-## 👁️ Why Realm? (A Reflection on the Industry)
+Traditional WAFs rely on lagging signature matching. Realm embraces a **Local-First Dimensional Strike**, utilizing the following rigorous mechanisms:
 
-The cybersecurity landscape has long suffered from traditional, bloated security software.
+1. **Shannon Entropy as a Metric:** Malicious payloads—such as packed malware, encrypted reverse shells, or overflow probing—inevitably cause violent fluctuations in the "Information Entropy" (byte distribution) of network packets. Realm calculates the Shannon entropy of the first 64 bytes of incoming payloads. Traffic deviating from your server's dynamically established thermodynamic baseline (EWMA) is classified as an anomaly and severed.
+2. **Nanosecond XDP Dropping:** Upon identifying a threat, Realm executes an `XDP_DROP` action directly at the Network Interface Controller (NIC) driver layer. The malicious packet is physically destroyed before it can allocate socket buffers (SKBs) or reach the Linux network stack (`iptables`/`netfilter`), making Realm immune to high-frequency DDoS and scanning exhaustion.
+3. **Anti-Exhaustion Memory Architecture:** Banned IPs are stored in a kernel-space eBPF `LRU_HASH` (Least Recently Used) map. Unlike standard hash maps that cause memory exhaustion (OOM) under heavy botnet scanning, Realm's `LRU_HASH` automatically evicts the oldest records when the 10,240-entry capacity is reached, guaranteeing eternal system stability.
+4. **HoneyTokens & Dynamic Punishment:** Realm silently inspects payloads for sensitive plaintext tokens (e.g., `admin`, `passwd`). A match indicates a deterministic attack, triggering an immediate IP ban and forcing the Law Engine into a "High-Tension Punishment" state (escalating the K-value sensitivity) for a 5-minute cooldown period.
+5. **Forensic Telemetry:** While defending, Realm translates binary payloads into readable ASCII and cross-references IPs with the GeoLite2 database, logging all thermodynamic judgments into a structured `realm_forensics.csv` for post-mortem analysis.
 
-1. **Lagging Signature Matching:** Traditional WAFs and Antivirus software are always one step behind hackers. They rely on massive "virus databases" or rigid Regex rules. Faced with mutated payloads or novel 0-day vulnerabilities, they are virtually blind.
-2. **Suffocating Bloat:** To stack features, security agents often consume excessive CPU and memory resources, sometimes dragging down the very business operations they are meant to protect.
-3. **Loss of Sovereignty & Privacy:** This is the most intolerable aspect. Many commercial security tools, under the guise of "Cloud Threat Intelligence," recklessly upload your server's raw traffic, logs, and even full PCAPs to their centralized servers. **You are paying for a black box that constantly surveils you.**
+## 🚀 Quick Start & Deployment Guide
 
-## 🏰 Core Philosophy: Local-First
+**Prerequisites:** Linux Kernel 5.8+ (with eBPF/XDP enabled), `clang`, and Go 1.25+.
 
-In this cloud-native era where data is arbitrarily harvested, Realm firmly embraces the **Local-First** philosophy.
-
-* **Absolute Data Privacy:** Realm operates at the NIC driver layer (XDP). All traffic observation, baseline calculation (EWMA), and interception judgments are completed in a closed loop within your local machine's memory. **Not a single byte of user data leaves your NIC. Your data belongs only to you.**
-* **Dimensional Strike via Entropy:** We do not extract signature codes. The injection of malicious code, the establishment of encrypted tunnels, or the probing of overflow attacks—these behaviors inevitably cause violent fluctuations in the "Information Entropy" of network packets. Realm acts like a physicist, capturing this "tension" via Shannon Entropy to physically fuse threats the moment they erupt.
-* **Kernel-Level Transparency:** As a privileged program running at Ring 0, trust is paramount. Realm's core logic is 100% open-source, completely transparent, and welcomes source code audits from the global community.
-
-## ⚙️ Dynamic Laws & Adversarial Environments
-
-Every server's network environment is unique. To ensure Realm perfectly adapts to your local ecosystem, we designed a **Dynamic Parameter Injection Mechanism**.
-
-While the code is open-source, the "Threshold Laws" that dictate life and death are controlled by the deployer. You can dynamically inject golden parameters optimized for your specific environment via environment variables (\`REALM_DIVIDER\` and \`REALM_MULTIPLIER\`). **The ultimate interpretation of the Law always remains in the hands of the deployer.**
-
-## ⚖️ License & Commercial Baseline (AGPL-3.0)
-
-Realm adopts the strictest open-source license: **GNU AGPL v3.0**.
-
-We welcome all geeks, researchers, and enterprises to download, use, and modify Realm for internal defense. However, we draw a hard line for cloud vendors attempting to free-ride on open-source efforts:
-**If you intend to package Realm into your commercial SaaS product, or provide Realm-based protection services to third parties over a network, you MUST open-source your entire project and retain the original author's copyright and attribution.**
-
-You may take our framework, but you must respect the open-source contract.
-
----
-
-## 🚀 Quick Start
-
-Realm is extremely lightweight with minimal dependencies. Unfold the barrier directly on your Linux server.
-
-\`\`\`bash
+```bash
 # 1. Clone the repository
 git clone https://github.com/xingkong0508/realm.git
 cd realm
 
-# 2. Compile eBPF probes (requires clang)
+# 2. Compile eBPF bytecode (Requires clang)
 go generate ./...
 
-# 3. Basic Mode (Uses community-default degraded parameters)
-sudo /snap/bin/go run .
+# 3. Build the Sovereign Engine
+go build -o realm_engine .
 
-# 4. Sovereign Mode (Inject your private Law parameters tuned for your environment)
-# NOTE: The values below are dummy examples. Replace them with your actual optimized parameters.
-REALM_DIVIDER=0.888 REALM_MULTIPLIER=1.333 sudo -E /snap/bin/go run .
-\`\`\`
+# 4. Secure your access (CRITICAL!)
+# This script automatically updates your current SSH IP as the absolute whitelist
+chmod +x update_admin.sh
+./update_admin.sh
 
-In this dark forest of unknown threats, let us use the certainty of mathematics to guard our final server sovereignty.
+# 5. Unleash Sovereign Mode
+# Inject your private Law parameters, specify your public NIC (e.g., ens4), and your admin IP
+sudo REALM_DIVIDER=0.95 REALM_MULTIPLIER=1.50 ./realm_engine -iface ens4 -admin YOUR_IP_HERE
+
+```
+
+## 🛠️ Troubleshooting & Operational Manual
+
+**Error 1: `Can't replace active BPF XDP link` or `Device or resource busy**`
+
+* **The Cause:** A previous instance of Realm crashed or was killed (`kill -9`) without properly detaching its hooks from the NIC.
+* **The Fix:** Forcefully sever the dangling XDP program using `bpftool` and clear the BPF filesystem.
+```bash
+sudo bpftool net detach xdp dev <your_interface>
+sudo bpftool net detach xdpgeneric dev <your_interface>
+sudo rm -rf /sys/fs/bpf/*
+
+```
+
+
+
+**Error 2: Administrator SSH Connection Dropped/Locked Out**
+
+* **The Cause:** You did not provide the `-admin <IP>` flag, or your dynamic IP changed, causing Realm to classify your encrypted SSH stream as an entropy anomaly.
+* **The Fix:** Log in via your cloud provider's out-of-band Serial Console (VNC/Web Console), stop the `realm_engine` process, and re-run `./update_admin.sh`.
+
+**Error 3: Compilation Failure (`use of undeclared identifier 'IPPROTO_TCP'`)**
+
+* **The Cause:** The C compiler cannot find the Linux networking dictionary.
+* **The Fix:** Ensure `#include <linux/in.h>` and `#include <linux/tcp.h>` are declared at the very top of `bpf/probe.c`.
