@@ -1,0 +1,2 @@
+Timestamp,IP,Entropy,Mean,StdDev,Reason,K,Alpha,HexDump,Count
+2026-03-01 21:48:59,172.24.208.1,5.3355,4.1742,1.3646,Honeypot,1.50,0.0001,e9830050c73c8260dc662ed150180402,12

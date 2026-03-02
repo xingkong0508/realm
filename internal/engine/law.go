@@ -16,18 +16,30 @@ return entropy
 }
 
 type LawEngine struct {
-Alpha float64
-Mean  float64 
-M2    float64 
-Count int64
-K     float64 
+Alpha      float64
+Mean       float64
+M2         float64
+Count      int64
+K          float64
+IsPunished bool
 }
 
 func NewLawEngine(alpha, k float64) *LawEngine {
-return &LawEngine{Alpha: alpha, K: k}
+return &LawEngine{Alpha: alpha, K: k, IsPunished: false}
 }
 
-// UpdateOnly 仅更新统计基线，不再越俎代庖进行审判
+func (e *LawEngine) Punish() {
+e.K = 1.5           
+e.Alpha = 0.0001    
+e.IsPunished = true
+}
+
+func (e *LawEngine) Restore() {
+e.K = 3.0
+e.Alpha = 0.01
+e.IsPunished = false
+}
+
 func (e *LawEngine) UpdateOnly(entropy float64) {
 e.Count++
 if e.Count == 1 {
