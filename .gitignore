@@ -1,19 +1,15 @@
-# 编译产生的可执行文件
-realm
-realm_engine
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.a
+# 过滤日志与数据库
+*.log
+realm_logs.json
+
+# 过滤编译后的二进制程序
+realm_guard
+realm_guard_old
+
+# 过滤 eBPF 编译生成的中间临时文件
 *.o
+bpf_bpfeb.go
+bpf_bpfel.go
 
-# IDE 和系统文件
-.idea/
-.vscode/
-.DS_Store
-
-# 环境变量配置（绝密线）
+# 过滤敏感的凭证（如有）
 .env
-.env.local

@@ -1,0 +1,100 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"log"
+	"net"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/rlimit"
+)
+
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target bpfel bpf bpf/probe.c
+
+func main() {
+	// 1. 接收命令行参数
+	ifaceName := flag.String("iface", "ens4", "要保护的网卡名称")
+	adminIP := flag.String("admin", "", "管理员白名单 IP")
+	flag.Parse()
+
+	if *adminIP == "" {
+		log.Fatal("错误: 必须指定 -admin 白名单 IP，否则你会把自己关在外面！")
+	}
+
+	// 2. 移除内核内存限制 (eBPF 必备)
+	if err := rlimit.RemoveMemlock(); err != nil {
+		log.Fatal("无法移除内存锁定限制:", err)
+	}
+
+	// 3. 加载编译好的 eBPF 字节码
+	objs := bpfObjects{}
+	if err := loadBpfObjects(&objs, nil); err != nil {
+		log.Fatal("加载 BPF 程序失败:", err)
+	}
+	defer objs.Close()
+
+	// 4. 获取网卡句柄
+	iface, err := net.InterfaceByName(*ifaceName)
+	if err != nil {
+		log.Fatalf("找不到网卡 %s: %v", *ifaceName, err)
+	}
+
+	// 5. 【核心修复】将 XDP 程序挂载到网卡物理层
+	// 强制指定 XDPGenericMode 以适配 GCP/云服务器环境
+	l, err := link.AttachXDP(link.XDPOptions{
+		Program:   objs.XdpRealmProbe,
+		Interface: iface.Index,
+		Flags:     link.XDPGenericMode, 
+	})
+	if err != nil {
+		log.Fatalf("❌ 物理层拦截挂载失败 (XDP): %v\n提示: 请确保你拥有 root 权限，且网卡名称正确。", err)
+	}
+	defer l.Close()
+
+	fmt.Printf("------------------------------------------\n")
+	fmt.Printf("[🚀] Realm 完全体部署成功！\n")
+	fmt.Printf("[🛡️] 物理层 (XDP) 已就绪 (ID 53/Generic)\n")
+	fmt.Printf("[🔗] 目标网卡: %s\n", *ifaceName)
+	fmt.Printf("[⚪] 管理员白名单: %s\n", *adminIP)
+	fmt.Printf("------------------------------------------\n")
+
+	// 6. 启动应用层蜜罐服务 (嘲讽模式)
+	go startHoneypot()
+
+	// 7. 保持后台运行，监听退出信号
+	stopper := make(chan os.Signal, 1)
+	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
+
+	log.Println("结界已开启，正在监控流量... (按 Ctrl+C 停止)")
+	<-stopper
+	log.Println("正在卸载结界并退出...")
+}
+
+// 模拟一个简单的蜜罐服务
+func startHoneypot() {
+	listener, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		log.Fatalf("无法开启蜜罐端口: %v", err)
+	}
+	defer listener.Close()
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			continue
+		}
+		go handleHacker(conn)
+	}
+}
+
+func handleHacker(conn net.Conn) {
+	defer conn.Close()
+	msg := "[ REALM 结界防御系统 ]\n" +
+		"> 警告：检测到非法越界行为。你的 IP 已被物理层阻断。\n" +
+		"> 状态：物理链路已斩断。请继续加油，黑客。\n"
+	conn.Write([]byte(msg))
+}

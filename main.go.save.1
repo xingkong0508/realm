@@ -1,0 +1,217 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"log"
+	"net"
+	"os"
+	"os/signal"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+
+	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/rlimit"
+)
+
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -target bpfel bpf bpf/probe.c
+
+type BanManager struct {
+	sync.Mutex
+	records map[string]time.Time
+	objs    *bpfObjects
+}
+
+var (
+	banMgr      *BanManager
+	adminIPConf string
+)
+
+func main() {
+	ifaceName := flag.String("iface", "ens4", "要保护的网卡名称")
+	adminIP := flag.String("admin", "", "网吧/固定白名单IP (可选)")
+	flag.Parse()
+
+	adminIPConf = *adminIP
+
+	if err := rlimit.RemoveMemlock(); err != nil {
+		log.Fatal("无法移除内存锁定限制:", err)
+	}
+
+	objs := bpfObjects{}
+	if err := loadBpfObjects(&objs, nil); err != nil {
+		log.Fatal("加载 BPF 程序失败:", err)
+	}
+	defer objs.Close()
+
+	banMgr = &BanManager{
+		records: make(map[string]time.Time),
+		objs:    &objs,
+	}
+
+	go banMgr.cleaner()
+
+	iface, err := net.InterfaceByName(*ifaceName)
+	if err != nil {
+		log.Fatalf("找不到网卡 %s: %v", *ifaceName, err)
+	}
+
+	l, err := link.AttachXDP(link.XDPOptions{
+		Program:   objs.XdpRealmProbe,
+		Interface: iface.Index,
+		Flags:     link.XDPGenericMode,
+	})
+	if err != nil {
+		log.Fatalf("❌ 物理层挂载失败: %v", err)
+	}
+	defer l.Close()
+
+	fmt.Printf("\n[🚀] Realm 铁三角 (暗号通行版) 启动成功！\n")
+	fmt.Printf("[🔑] 专属访问通道: http://服务器IP/realm-admin-2026\n")
+	fmt.Printf("------------------------------------------\n")
+
+	go startHoneypot()
+
+	stopper := make(chan os.Signal, 1)
+	signal.Notify(stopper, os.Interrupt, syscall.SIGTERM)
+
+	log.Println("结界已开启，正在静默狩猎... (按 Ctrl+C 停止)")
+	<-stopper
+}
+
+func startHoneypot() {
+	listener, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		log.Fatalf("无法开启蜜罐端口: %v", err)
+	}
+	defer listener.Close()
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			continue
+		}
+		go handleTraffic(conn)
+	}
+}
+
+func handleTraffic(conn net.Conn) {
+	defer conn.Close()
+	remoteAddr, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+
+	// 设置 2 秒读取超时，防止黑客挂起连接
+	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+	buf := make([]byte, 1024)
+	n, _ := conn.Read(buf)
+	requestLine := string(buf[:n])
+
+	// 认证逻辑 1：IP 白名单（你在网吧依然直接免死）
+	if remoteAddr == adminIPConf && adminIPConf != "" {
+		sendAdminDashboard(conn, remoteAddr)
+		return
+	}
+
+	// 认证逻辑 2：终极暗号通行（离开网吧后用这个）
+	// 只要访问路径是 /realm-admin-2026 就可以无视 IP 阻断
+	if strings.Contains(requestLine, "GET /realm-admin-2026") {
+		sendAdminDashboard(conn, remoteAddr)
+		return
+	}
+
+	// 没有对上暗号的，全部按黑客处理，物理拉黑 10 分钟！
+	banMgr.banIP(remoteAddr)
+	sendHackerResponse(conn)
+}
+
+func (m *BanManager) banIP(ipStr string) {
+	m.Lock()
+	defer m.Unlock()
+
+	if _, exists := m.records[ipStr]; exists {
+		return
+	}
+
+	ip := net.ParseIP(ipStr).To4()
+	if ip == nil {
+		return
+	}
+
+	key := uint32(ip[0]) | uint32(ip[1])<<8 | uint32(ip[2])<<16 | uint32(ip[3])<<24
+	var val uint32 = 1
+
+	if err := m.objs.BlackList.Update(&key, &val, 0); err != nil {
+		return
+	}
+
+	m.records[ipStr] = time.Now()
+	log.Printf("[🔴] 目标已被切断物理连接: %s", ipStr)
+}
+
+func (m *BanManager) cleaner() {
+	ticker := time.NewTicker(30 * time.Second)
+	for range ticker.C {
+		m.Lock()
+		now := time.Now()
+		for ipStr, banTime := range m.records {
+			if now.Sub(banTime) >= 10*time.Minute {
+				ip := net.ParseIP(ipStr).To4()
+				if ip != nil {
+					key := uint32(ip[0]) | uint32(ip[1])<<8 | uint32(ip[2])<<16 | uint32(ip[3])<<24
+					m.objs.BlackList.Delete(&key)
+				}
+				delete(m.records, ipStr)
+				log.Printf("[🟢] 封印期满，已释放 IP: %s", ipStr)
+			}
+		}
+		m.Unlock()
+	}
+}
+
+// 网页部分 A：管理员仪表盘
+func sendAdminDashboard(conn net.Conn, visitorIP string) {
+	banMgr.Lock()
+	defer banMgr.Unlock()
+
+	var rows string
+	now := time.Now()
+	count := 0
+	for ip, banTime := range banMgr.records {
+		count++
+		rem := 10*time.Minute - now.Sub(banTime)
+		rows += fmt.Sprintf("<tr style='border-bottom:1px solid #333'><td>%d</td><td style='color:#ff5555'>%s</td><td>%s</td><td style='color:#00ff00'>%.0f秒后释放</td></tr>",
+			count, ip, banTime.Format("15:04:05"), rem.Seconds())
+	}
+
+	if count == 0 {
+		rows = "<tr><td colspan='4' style='text-align:center;padding:20px'>当前结界内暂无囚犯</td></tr>"
+	}
+
+	// 核心：注意这里把自动刷新的 URL 也改成了暗号路径
+	html := fmt.Sprintf(`
+	<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="5;url=/realm-admin-2026"><title>Realm Dashboard</title></head>
+	<body style="background:#0a0a0a; color:#eee; font-family:sans-serif; padding:30px;">
+		<h2 style="color:#00afff;">🛡️ Realm 实时防御指挥部</h2>
+		<p>当前访问 IP：<span style="color:#ffaa00">%s</span> (已通过暗号认证)</p>
+		<table style="width:100%%; background:#111; border-collapse:collapse;">
+			<tr style="background:#222; color:#00afff;"><th>编号</th><th>攻击者 IP</th><th>封印起始</th><th>倒计时</th></tr>
+			%s
+		</table>
+	</body></html>`, visitorIP, rows)
+
+	resp := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %d\r\n\r\n%s", len(html), html)
+	conn.Write([]byte(resp))
+}
+
+// 网页部分 B：黑客嘲讽页面
+func sendHackerResponse(conn net.Conn) {
+	body := `<html><head><meta charset="utf-8"></head><body style="background:black; color:red; padding:50px; font-family:monospace;">
+		<h1>[ REALM 结界防御系统 ]</h1><hr>
+		<p>> 警告：检测到非法扫描行为。</p>
+		<p>> 状态：物理链路已在内核层斩断。</p>
+		<p>> 结果：你的 IP 将被封禁 10 分钟。</p>
+	</body></html>`
+	resp := fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %d\r\n\r\n%s", len(body), body)
+	conn.Write([]byte(resp))
+}

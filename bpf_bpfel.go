@@ -61,8 +61,8 @@ type bpfProgramSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfMapSpecs struct {
-	BlackList *ebpf.MapSpec `ebpf:"black_list"`
-	Rb        *ebpf.MapSpec `ebpf:"rb"`
+	AdminWhitelist *ebpf.MapSpec `ebpf:"admin_whitelist"`
+	BlackList      *ebpf.MapSpec `ebpf:"black_list"`
 }
 
 // bpfVariableSpecs contains global variables before they are loaded into the kernel.
@@ -91,14 +91,14 @@ func (o *bpfObjects) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfMaps struct {
-	BlackList *ebpf.Map `ebpf:"black_list"`
-	Rb        *ebpf.Map `ebpf:"rb"`
+	AdminWhitelist *ebpf.Map `ebpf:"admin_whitelist"`
+	BlackList      *ebpf.Map `ebpf:"black_list"`
 }
 
 func (m *bpfMaps) Close() error {
 	return _BpfClose(
+		m.AdminWhitelist,
 		m.BlackList,
-		m.Rb,
 	)
 }
 
