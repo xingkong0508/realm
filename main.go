@@ -58,6 +58,7 @@ type LogEntry struct {
 var (
 	banMgr      *BanManager
 	adminIPConf string
+	adminPath   string // 新增：将写死的后门路径转为动态变量
 
 	dbLogs   []LogEntry
 	dbMutex  sync.Mutex
@@ -99,8 +100,12 @@ func saveDB() {
 func main() {
 	ifaceName := flag.String("iface", "ens4", "要保护的网卡名称")
 	adminIP := flag.String("admin", "", "网吧/固定白名单IP (可选)")
+	// 新增：允许通过命令行修改管理面板路径，默认保持原样以防你忘记
+	adminPathFlag := flag.String("path", "/realm-admin-2026", "后台管理面板的隐藏路径")
 	flag.Parse()
+	
 	adminIPConf = *adminIP
+	adminPath = *adminPathFlag // 赋值给全局变量
 
 	initDB()
 
@@ -138,10 +143,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("❌ 物理层挂载失败: %v", err)
 	}
-defer l.Close()
+	defer l.Close()
 
 	fmt.Printf("\n[🚀] Realm 2.5 (赛博黑客风完全体) 启动成功！\n")
-	fmt.Printf("[🔑] 指挥官大屏: http://服务器IP:8080/realm-admin-2026\n")
+	fmt.Printf("[🔑] 指挥官大屏: http://服务器IP:8080%s\n", adminPath)
 
 	go banMgr.cleaner()
 	go startHoneypot()
@@ -259,15 +264,16 @@ func handleTraffic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-// -----------------------------------------------------
+	// -----------------------------------------------------
 	// 原有防误杀、特赦与死缓逻辑 (全量保留无删减)
 	// -----------------------------------------------------
 	whitelistMutex.Lock()
 	isWhitelisted := dynamicWhitelist[remoteAddr]
 	whitelistMutex.Unlock()
 
+	// 替换为动态变量 adminPath
 	if (remoteAddr == adminIPConf && adminIPConf != "") || isWhitelisted {
-		if r.URL.Path == "/realm-admin-2026" {
+		if r.URL.Path == adminPath {
 			sendAdminDashboard(w, remoteAddr)
 		} else {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -276,7 +282,8 @@ func handleTraffic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.URL.Path == "/realm-admin-2026" {
+	// 替换为动态变量 adminPath
+	if r.URL.Path == adminPath {
 		whitelistMutex.Lock()
 		dynamicWhitelist[remoteAddr] = true
 		whitelistMutex.Unlock()
@@ -468,7 +475,7 @@ func sendHackerResponse(w http.ResponseWriter, hackerIP string) {
 	count := 0
 	for i := len(dbLogs) - 1; i >= 0 && count < 5; i-- {
 		if dbLogs[i].IP != hackerIP {
-			parts := strings.Split(dbLogs[i].IP, ".")
+			parts := strings.Split(dbLogs[i].IP, dbLogs[i].IP)
 			masked := dbLogs[i].IP
 			if len(parts) == 4 {
 				masked = fmt.Sprintf("%s.%s.*.*", parts[0], parts[1])
@@ -517,4 +524,3 @@ func sendHackerResponse(w http.ResponseWriter, hackerIP string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(html))
 }
-
