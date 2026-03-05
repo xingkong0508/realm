@@ -3,16 +3,19 @@ import os
 from email.mime.text import MIMEText
 from datetime import datetime
 
-# --- 配置区 ---
-SMTP_SERVER = "smtp.gmail.com"  # 以 Gmail 为例
-SMTP_PORT = 587
-SENDER_EMAIL = "xxxxx"
-# 注意：你需要去 Gmail 设置里申请“应用专用密码 (App Password)”，而不是普通登录密码
-SENDER_PASSWORD = "xxxxx" 
-RECEIVER_EMAIL = "xxxxx"
+# --- 配置区 (已做环境变量与相对路径的隐藏处理) ---
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
 
-LOG_FILE = "/home/chenweilong0508/realm/realm_forensics.csv"
-STATE_FILE = "/home/chenweilong0508/realm/last_line_pointer.txt"
+# 默认读取环境变量，如果没有配置，则回退到你的 "xxxxx" 占位符
+SENDER_EMAIL = os.getenv("SENDER_EMAIL", "xxxxx")
+SENDER_PASSWORD = os.getenv("SENDER_PASSWORD", "xxxxx") 
+RECEIVER_EMAIL = os.getenv("RECEIVER_EMAIL", "xxxxx")
+
+# 动态获取当前脚本所在的绝对路径，隐藏你的系统用户名
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOG_FILE = os.path.join(BASE_DIR, "realm_forensics.csv")
+STATE_FILE = os.path.join(BASE_DIR, "last_line_pointer.txt")
 
 def send_mail(content):
     msg = MIMEText(content)
