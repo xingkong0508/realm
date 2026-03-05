@@ -6,10 +6,10 @@ from datetime import datetime
 # --- 配置区 ---
 SMTP_SERVER = "smtp.gmail.com"  # 以 Gmail 为例
 SMTP_PORT = 587
-SENDER_EMAIL = "chenweilong0508@gmail.com"
+SENDER_EMAIL = "xxxxx"
 # 注意：你需要去 Gmail 设置里申请“应用专用密码 (App Password)”，而不是普通登录密码
-SENDER_PASSWORD = "nazd ohoo amqr osja" 
-RECEIVER_EMAIL = "chenweilong0508@gmail.com"
+SENDER_PASSWORD = "xxxxx" 
+RECEIVER_EMAIL = "xxxxx"
 
 LOG_FILE = "/home/chenweilong0508/realm/realm_forensics.csv"
 STATE_FILE = "/home/chenweilong0508/realm/last_line_pointer.txt"
