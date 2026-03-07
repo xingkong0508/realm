@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realm Server</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: #1a1b20; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .container { max-width: 600px; margin: 50px auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h2 { color: #4fc3f7; font-size: 24px; margin: 0 0 10px 0; }
+        .header p { color: #81c784; font-size: 13px; margin: 0; }
+        
+        .box { background-color: #121317; border: 1px solid #331515; border-radius: 8px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .box-title { text-align: center; color: #ff5252; font-size: 16px; font-weight: bold; margin-bottom: 20px; }
+        
+        .stats { display: flex; justify-content: space-around; border-bottom: 1px solid #2a2a2a; padding-bottom: 20px; margin-bottom: 20px; }
+        .stat-item { text-align: center; }
+        .stat-num { color: #ff5252; font-size: 36px; font-weight: bold; }
+        .stat-label { color: #757575; font-size: 12px; margin-top: 5px; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { color: #4fc3f7; text-align: left; padding: 10px 5px; border-bottom: 1px solid #2a2a2a; font-weight: normal; }
+        td { padding: 12px 5px; border-bottom: 1px solid #2a2a2a; color: #9e9e9e; }
+        .ip-col { color: #ff5252; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>🌐 欢迎访问 Realm Server</h2>
+            <p>> 正常业务通道：您的合法访问已被放行，未触发防御结界。</p>
+        </div>
+        
+        <div class="box">
+            <div class="box-title">💀 结界防御公开榜示</div>
+            <p style="text-align:center; color:#757575; font-size:11px; margin-top:-15px; margin-bottom:20px;">(以下是非法扫描/攻击者的自动处罚记录)</p>
+            
+            <div class="stats">
+                <div class="stat-item"><div class="stat-num" id="today-blocks">0</div><div class="stat-label">今日拦截</div></div>
+                <div class="stat-item"><div class="stat-num" id="total-blocks">0</div><div class="stat-label">历史总计</div></div>
+            </div>
+            
+            <table>
+                <thead><tr><th>封禁 IP (脱敏)</th><th>国家</th><th>案发时间</th></tr></thead>
+                <tbody id="leaderboard"></tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        function obfuscateIP(ip) {
+            let parts = ip.split('.');
+            if (parts.length === 4) return `${parts[0]}.${parts[1]}.*.*`;
+            return ip;
+        }
+
+        async function loadStats() {
+            try {
+                const res = await fetch('/api/stats');
+                const data = await res.json();
+                document.getElementById('today-blocks').innerText = data.today_blocks;
+                document.getElementById('total-blocks').innerText = data.total_blocks;
+                
+                const tbody = document.getElementById('leaderboard');
+                tbody.innerHTML = '';
+                // 取最近的 15 条展示
+                data.recent_drops.slice(0, 15).forEach((item) => {
+                    let tr = document.createElement('tr');
+                    tr.innerHTML = `<td class="ip-col">${obfuscateIP(item.ip)}</td><td>${item.country}</td><td>${item.time}</td>`;
+                    tbody.appendChild(tr);
+                });
+            } catch (e) { console.error("同步失败", e); }
+        }
+        setInterval(loadStats, 3000); loadStats();
+    </script>
+</body>
+</html>

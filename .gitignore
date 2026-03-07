@@ -1,15 +1,17 @@
-# 过滤日志与数据库
-*.log
-realm_logs.json
-
-# 过滤编译后的二进制程序
+# 1. 屏蔽所有二进制可执行文件
 realm_guard
-realm_guard_old
+realm_final
+bpf_bpf*
 
-# 过滤 eBPF 编译生成的中间临时文件
+# 2. 屏蔽所有商业机密数据 (核心隐私！)
+realm_logs.json
+realm_forensics.csv
+last_line_pointer.txt
+
+# 3. 屏蔽运行日志与系统数据
+*.log
+*.mmdb
+
+# 4. 屏蔽编译残留与临时文件
 *.o
-bpf_bpfeb.go
-bpf_bpfel.go
-
-# 过滤敏感的凭证（如有）
-.env
+*.save*

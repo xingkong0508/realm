@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Realm 3.0 | 战术指挥中心</title>
+    <style>
+        /* --- 核心基础样式 --- */
+        body { 
+            margin: 0; 
+            padding: 10px; 
+            background-color: #0a0b0d; 
+            color: #a0a0a0; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            font-size: 13px; 
+            line-height: 1.5;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        /* --- 顶部指挥官信息栏 --- */
+        .header { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 10px;
+            border-bottom: 1px solid #333; 
+            padding-bottom: 15px; 
+            margin-bottom: 20px; 
+        }
+        @media (min-width: 768px) {
+            .header { flex-direction: row; justify-content: space-between; align-items: center; }
+        }
+        .header h2 { color: #4fc3f7; margin: 0; font-size: 18px; letter-spacing: 1px; }
+        .auth-tag { 
+            background: #1e3a1e; 
+            color: #a5d6a7; 
+            padding: 5px 12px; 
+            border-radius: 4px; 
+            border: 1px solid #4caf50; 
+            font-size: 12px;
+            display: inline-block;
+        }
+
+        /* --- 战术模式控制区 --- */
+        .mode-panel {
+            background: #16171a;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #f39c12;
+            margin-bottom: 20px;
+        }
+        .mode-controls { 
+            display: flex; 
+            flex-wrap: wrap; 
+            gap: 10px; 
+            margin-top: 15px; 
+        }
+        button { 
+            flex: 1;
+            min-width: 120px;
+            padding: 12px; 
+            font-weight: bold; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            color: #fff;
+            transition: 0.3s;
+            text-transform: uppercase;
+            font-size: 12px;
+        }
+        .btn-obs { background: #555; }
+        .btn-def { background: #8b0000; }
+        .btn-dis { background: #333; }
+        button:active { transform: scale(0.95); }
+
+        /* --- 数据模块卡片 --- */
+        .section-title { 
+            color: #fff; 
+            font-size: 15px; 
+            margin: 25px 0 12px 0; 
+            border-left: 3px solid #4fc3f7; 
+            padding-left: 10px; 
+            display: flex;
+            align-items: center;
+        }
+
+        /* --- 响应式表格核心处理 --- */
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto; /* 关键：手机端滑动查看 */
+            -webkit-overflow-scrolling: touch;
+            background: #121212;
+            border-radius: 6px;
+            border: 1px solid #222;
+        }
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            white-space: nowrap; /* 关键：防止文字在窄屏换行挤压 */
+        }
+        th { background: #1a1a1a; color: #4fc3f7; text-align: left; padding: 12px; border-bottom: 1px solid #333; font-weight: normal; }
+        td { padding: 12px; border-bottom: 1px solid #1f1f1f; }
+        
+        /* --- 视觉特效列 --- */
+        .ip-col { color: #ff5252; font-family: "Courier New", Courier, monospace; font-weight: bold; }
+        .status-banned { color: #ff5252; font-weight: bold; }
+        .status-released { color: #4caf50; font-weight: bold; }
+        .reason { color: #ffb74d; }
+        .entropy { color: #81c784; font-weight: bold; }
+        .timer { color: #4caf50; font-family: monospace; }
+        .dot { 
+            height: 8px; width: 8px; background-color: #ff5252; 
+            border-radius: 50%; display: inline-block; 
+            box-shadow: 0 0 8px #ff5252; margin-right: 8px;
+            animation: blink 1.5s infinite;
+        }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+
+        /* --- 手机端特殊微调 --- */
+        @media (max-width: 600px) {
+            body { padding: 5px; }
+            .section-title { font-size: 14px; }
+            td, th { padding: 10px 8px; font-size: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>🛡️ Realm 3.0 战术指挥中心</h2>
+            <div class="auth-tag">✅ 认证地址: <span id="admin-ip">...</span></div>
+        </div>
+        
+        <div class="mode-panel">
+            <div style="display: flex; justify-content: space-between;">
+                <span>引擎状态：<strong id="sys-mode" style="color:#fff;">加载中...</strong></span>
+            </div>
+            <div class="mode-controls">
+                <button class="btn-obs" onclick="setMode('OBSERVATION')">🟡 观察模式</button>
+                <button class="btn-def" onclick="setMode('DEFENSE')">🔴 开启防御</button>
+                <button class="btn-dis" onclick="setMode('DISABLED')">⚪ 挂起防线</button>
+            </div>
+        </div>
+
+        <div class="section-title">📡 内核实况雷达 (10min 动态监视)</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th width="40">监视</th>
+                        <th>锁定 IP</th>
+                        <th>距离刑满释放 (秒)</th>
+                    </tr>
+                </thead>
+                <tbody id="radar-body">
+                    <tr><td colspan="3" style="text-align:center; color:#555;">正在扫描内核黑名单...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="section-title">🗄️ 威胁判定档案馆 (全量数据)</div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>恶意源 IP</th>
+                        <th>执着度</th>
+                        <th>混淆熵 (H)</th>
+                        <th>威胁定性</th>
+                        <th>来源国家/地区</th>
+                        <th>最后触碰时间</th>
+                        <th>当前状态</th>
+                    </tr>
+                </thead>
+                <tbody id="archive-body">
+                    <tr><td colspan="7" style="text-align:center; color:#555;">档案调取中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let activeBansData = []; // 存储当前被封禁 IP 的释放时间戳
+
+        // --- 切换运行模式 ---
+        function setMode(mode) {
+            if(!confirm(`确定要切换到 ${mode} 模式吗？`)) return;
+            fetch('/api/admin/mode', { 
+                method: 'POST', 
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({mode: mode}) 
+            })
+            .then(r => r.json())
+            .then(d => loadAdminStats());
+        }
+
+        // --- 本地秒级计时器：更新雷达倒计时 ---
+        setInterval(() => {
+            const tbody = document.getElementById('radar-body');
+            if(activeBansData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#555; padding:20px;">当前区域安全，无锁定目标</td></tr>';
+                return;
+            }
+            let html = '';
+            const now = Math.floor(Date.now() / 1000);
+            activeBansData.forEach(ban => {
+                let left = ban.release_time - now;
+                if (left < 0) left = 0;
+                html += `<tr>
+                    <td><span class="dot"></span></td>
+                    <td class="ip-col">${ban.ip}</td>
+                    <td class="timer">${left} s</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }, 1000);
+
+        // --- 核心数据拉取函数 ---
+        async function loadAdminStats() {
+            try {
+                const res = await fetch('/api/admin/stats');
+                const data = await res.json();
+                
+                // 更新全局状态显示
+                document.getElementById('sys-mode').innerText = data.current_mode;
+                document.getElementById('admin-ip').innerText = data.admin_ip;
+                
+                // 同步雷达数据
+                activeBansData = data.active_bans || [];
+                const activeIPs = new Set(activeBansData.map(b => b.ip));
+
+                // 渲染档案馆 (已物理剔除“攻击载荷”列)
+                const arcBody = document.getElementById('archive-body');
+                arcBody.innerHTML = '';
+                
+                if(!data.recent_drops || data.recent_drops.length === 0) {
+                    arcBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#555; padding:20px;">档案馆空空如也</td></tr>';
+                    return;
+                }
+
+                data.recent_drops.forEach(item => {
+                    let isBanned = activeIPs.has(item.ip);
+                    let statusHtml = isBanned ? '<span class="status-banned">BANNED</span>' : '<span class="status-released">RELEASED</span>';
+                    let entropyText = item.entropy > 0 ? `<span class="entropy">${item.entropy.toFixed(2)}</span>` : '-';
+                    
+                    arcBody.innerHTML += `<tr>
+                        <td class="ip-col">${item.ip}</td>
+                        <td style="color:#fff;">${item.strikes} 次</td>
+                        <td>${entropyText}</td>
+                        <td class="reason">${item.reason}</td>
+                        <td style="color:#90caf9;">📍 ${item.geo}</td>
+                        <td>${item.time}</td>
+                        <td>${statusHtml}</td>
+                    </tr>`;
+                });
+            } catch (e) { console.error("数据链路中断", e); }
+        }
+        
+        // --- 轮询刷新：每3秒拉取一次最新情报 ---
+        setInterval(loadAdminStats, 3000);
+        loadAdminStats();
+    </script>
+</body>
+</html>
